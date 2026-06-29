@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  financial-db:
+    image: postgres:16-alpine
+    container_name: financial-db
+    environment:
+      POSTGRES_DB: financial_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - financial-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  financial-app:
+    build: .
+    container_name: financial-app
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://financial-db:5432/financial_service
+    ports:
+      - "8080:8080"
+    depends_on:
+      financial-db:
+        condition: service_healthy
+
+volumes:
+  financial-db-data:
+

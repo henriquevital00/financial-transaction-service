@@ -1,0 +1,273 @@
+openapi: 3.0.3
+info:
+  title: Financial Transaction Service API
+  version: 1.0.0
+  description: >-
+    REST API para gerenciar contas financeiras com arquitetura hexagonal.
+servers:
+  - url: /api
+    description: Context path da aplicacao
+paths:
+  /v1/accounts:
+    post:
+      tags:
+        - Accounts
+      summary: Criar uma nova conta
+      description: Cria uma nova conta financeira com um número de documento unico (CPF ou CNPJ)
+      operationId: createAccount
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Chave de idempotência para garantir que requisições repetidas não dupliquem a criação.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+            examples:
+              cpf:
+                summary: CPF sem formatação
+                value:
+                  document_number: '11144477735'
+      responses:
+        '201':
+          description: Conta criada com sucesso
+          headers:
+            Location:
+              description: URI da conta criada
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '400':
+          description: Requisição inválida (documento inválido ou mal formatado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conta com este documento já existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/accounts/{accountId}:
+    get:
+      tags:
+        - Accounts
+      summary: Busca uma conta pelo ID
+      description: Retorna os dados de uma conta existente
+      operationId: getAccount
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: O ID único da conta
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Conta encontrada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '404':
+          description: Conta não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: ID inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/transactions:
+    post:
+      tags:
+        - Transactions
+      summary: Criar uma nova transação
+      description: Registra uma operação de compra, parcelado, saque ou crédito.
+      operationId: createTransaction
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Chave de idempotência para evitar transações duplicadas.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+            examples:
+              purchase:
+                summary: Exemplo de Compra
+                value:
+                  account_id: '550e8400-e29b-41d4-a716-446655440000'
+                  operation_type_id: 1
+                  amount: 50.0
+      responses:
+        '201':
+          description: Transação criada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          description: Dados inválidos (ex. tipo de operação inválida)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Conta não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    CreateAccountRequest:
+      type: object
+      required:
+        - document_number
+      properties:
+        document_number:
+          type: string
+          description: CPF ou CNPJ do cliente (apenas dígitos ou formatado)
+          example: '11144477735'
+          pattern: '^(\d{11}|\d{14})$'
+    AccountResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        documentNumber:
+          type: string
+          example: '11144477735'
+        documentNumberFormatted:
+          type: string
+          example: '111.444.777-35'
+        status:
+          type: string
+          example: ACTIVE
+          enum:
+            - ACTIVE
+            - BLOCKED
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-06-22T10:30:00'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-06-22T10:30:00'
+      required:
+        - id
+        - documentNumber
+        - documentNumberFormatted
+        - status
+        - createdAt
+        - updatedAt
+    ErrorResponse:
+      type: object
+      description: Data Structure containing the error details.
+      properties:
+        code:
+          type: string
+          description: Unique alphanumeric human readable error code.
+          example: '401'
+        message:
+          type: string
+          description: Brief summary of the reported issue.
+          example: Invalid field value
+        level:
+          type: string
+          description: level of the reported issue.
+          example: error
+          enum:
+            - info
+            - warning
+            - error
+        description:
+          type: string
+          description: Detailed description of the reported issue.
+          example: The provided code is not supported for this channel.
+    CreateTransactionRequest:
+      type: object
+      required:
+        - account_id
+        - operation_type_id
+        - amount
+      properties:
+        account_id:
+          type: string
+          format: uuid
+          description: ID da conta
+        operation_type_id:
+          type: integer
+          description: Tipo da operação (1-Normal, 2-Installments, 3-Withdrawal, 4-Credit)
+        amount:
+          type: number
+          format: double
+          description: Valor absoluto da transação
+          minimum: 0.01
+    TransactionResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        account_id:
+          type: string
+          format: uuid
+        operation_type_id:
+          type: integer
+        amount:
+          type: number
+          format: double
+        event_date:
+          type: string
+          format: date-time
+      required:
+        - transaction_id
+        - account_id
+        - operation_type_id
+        - amount
+        - event_date
+
