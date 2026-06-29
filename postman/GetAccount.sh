@@ -1,0 +1,1 @@
+curl --location 'http://localhost:8080/api/v1/accounts/448c5b2a-5c20-4597-8146-b55451433e95'
